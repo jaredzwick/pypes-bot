@@ -11,6 +11,7 @@
     "README.md"
   ],
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "build": "bun build src/cli.ts --target=node --format=esm --outfile=dist/cli.mjs --banner=\"#!/usr/bin/env node\" && chmod +x dist/cli.mjs",
     "prepublishOnly": "bun run build"
   },

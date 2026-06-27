@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  server:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +17,22 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun test
+
+  npx:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./npx
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run build
+      - name: Smoke run bundled CLI
+        run: node dist/cli.mjs --help
 
   docker:
     runs-on: ubuntu-latest
