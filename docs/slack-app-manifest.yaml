@@ -1,0 +1,29 @@
+# Slack app manifest for pypes-bot
+# Paste this at https://api.slack.com/apps?new_app=1 → "From a manifest"
+# After install, copy the signing secret + bot token into your pypes.env.
+display_information:
+  name: pypes-bot
+  description: Self-hosted Slack mention → Claude → PR bot
+  background_color: "#0d1117"
+features:
+  bot_user:
+    display_name: pypes-bot
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - channels:history
+      - groups:history
+      - reactions:read
+      - reactions:write
+settings:
+  event_subscriptions:
+    # Set request_url to your public URL (cloudflared / ngrok) + /slack/events
+    # AFTER you start the bot for the first time.
+    bot_events:
+      - app_mention
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

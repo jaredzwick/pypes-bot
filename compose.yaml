@@ -1,0 +1,15 @@
+services:
+  pypes-bot:
+    image: ghcr.io/jaredzwick/pypes-bot:latest
+    container_name: pypes-bot
+    restart: unless-stopped
+    env_file: ./pypes.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./pypes-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

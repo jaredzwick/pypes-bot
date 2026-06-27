@@ -1,0 +1,148 @@
+# pypes-bot autopilot runner
+# Copy this file to .github/workflows/pypes-bot-autopilot.yaml in YOUR repo.
+# Required repo secrets:
+#   ANTHROPIC_API_KEY            — dedicated key with a console spend cap
+#   PYPES_SLACK_BOT_TOKEN        — xoxb-... bot token for posting back to Slack
+#   PYPES_GH_PAT                 — same PAT the bot uses, also used for gh pr create
+#   PYPES_RUNNER_CALLBACK_SECRET — 32+ char shared secret with the bot
+#   PYPES_PUBLIC_URL             — public URL of your bot (cloudflared/ngrok)
+
+name: pypes-bot-autopilot
+
+on:
+  workflow_dispatch:
+    inputs:
+      mention_id:    { description: 'mention id', required: true }
+      task:          { description: 'task',       required: true }
+      slack_channel: { description: 'channel',    required: true }
+      slack_thread_ts: { description: 'thread ts', required: true }
+      slack_user_id: { description: 'user id',    required: true }
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MENTION_ID:         ${{ github.event.inputs.mention_id }}
+      TASK:               ${{ github.event.inputs.task }}
+      SLACK_CHANNEL:      ${{ github.event.inputs.slack_channel }}
+      SLACK_THREAD_TS:    ${{ github.event.inputs.slack_thread_ts }}
+      SLACK_USER_ID:      ${{ github.event.inputs.slack_user_id }}
+      ANTHROPIC_API_KEY:  ${{ secrets.ANTHROPIC_API_KEY }}
+      SLACK_BOT_TOKEN:    ${{ secrets.PYPES_SLACK_BOT_TOKEN }}
+      GH_TOKEN:           ${{ secrets.PYPES_GH_PAT }}
+      CALLBACK_SECRET:    ${{ secrets.PYPES_RUNNER_CALLBACK_SECRET }}
+      PUBLIC_URL:         ${{ secrets.PYPES_PUBLIC_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PYPES_GH_PAT }}
+          fetch-depth: 0
+
+      - name: Create branch
+        run: |
+          SHORT=$(echo "$MENTION_ID" | cut -c1-8)
+          BRANCH="pypes-bot/${SHORT}-$(date +%s)"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - name: Install Claude CLI
+        run: npm install -g @anthropic-ai/claude-code@latest
+
+      - name: Run claude --print
+        id: claude
+        run: |
+          set +e
+          START=$(date +%s)
+          OUT=$(echo "$TASK" | claude --print \
+            --model haiku \
+            --max-turns 15 \
+            --max-budget-usd 10 \
+            --output-format json \
+            --permission-mode acceptEdits \
+            --disallowedTools \
+              'Bash(git push -f*)' \
+              'Bash(git push --force*)' \
+              'Bash(rm -rf*)' \
+              'Bash(psql*)' \
+              'Bash(kubectl*)' \
+              'Bash(helm*)' \
+              'Edit(.env*)' \
+              'Edit(.github/**)' \
+              'Edit(CLAUDE.md)' 2> claude.err)
+          EXIT=$?
+          END=$(date +%s)
+          echo "$OUT" > claude.json
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          echo "duration=$((END - START))" >> "$GITHUB_OUTPUT"
+          if [ -s claude.json ]; then
+            COST=$(jq -r '.total_cost_usd // 0' claude.json)
+            RESULT=$(jq -r '.result // ""' claude.json)
+          else
+            COST=0
+            RESULT="(no output from claude)"
+          fi
+          echo "cost=$COST" >> "$GITHUB_OUTPUT"
+          {
+            echo "result<<__EOF__"
+            echo "$RESULT"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit and open PR if changes
+        id: pr
+        if: steps.claude.outputs.exit_code == '0'
+        run: |
+          git config user.name "pypes-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "pypes-bot: $(echo "$TASK" | head -c 60)"
+          git push -u origin "$BRANCH"
+          PR_URL=$(gh pr create --title "pypes-bot: $(echo "$TASK" | head -c 60)" --body "Triggered by Slack mention $MENTION_ID")
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Reply to Slack
+        if: always()
+        run: |
+          if [ "${{ steps.pr.outputs.has_changes }}" = "true" ]; then
+            TEXT=":white_check_mark: Opened PR: ${{ steps.pr.outputs.pr_url }}"
+          elif [ "${{ steps.claude.outputs.exit_code }}" = "0" ]; then
+            TEXT=$(printf '%s' "${{ steps.claude.outputs.result }}" | head -c 3800)
+          else
+            ERR=$(tail -c 1500 claude.err 2>/dev/null || echo "")
+            TEXT=":x: Couldn't complete (exit ${{ steps.claude.outputs.exit_code }})\n\`\`\`$ERR\`\`\`"
+          fi
+          curl -sS -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$(jq -nc --arg c "$SLACK_CHANNEL" --arg t "$SLACK_THREAD_TS" --arg msg "$TEXT" \
+              '{channel:$c, thread_ts:$t, text:$msg}')"
+
+      - name: Report cost back to pypes-bot
+        if: always()
+        run: |
+          BODY=$(jq -nc \
+            --arg id "$MENTION_ID" \
+            --argjson cost ${{ steps.claude.outputs.cost || 0 }} \
+            --argjson exit ${{ steps.claude.outputs.exit_code || 1 }} \
+            --arg pr  "${{ steps.pr.outputs.pr_url || '' }}" \
+            '{mention_id:$id, cost_usd:$cost, exit_code:$exit, pr_url: (if $pr=="" then null else $pr end)}')
+          SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$CALLBACK_SECRET" -hex | awk '{print $2}')
+          curl -sS -X POST "$PUBLIC_URL/runner/callback" \
+            -H "Content-Type: application/json" \
+            -H "X-Pypes-Signature: $SIG" \
+            -d "$BODY"

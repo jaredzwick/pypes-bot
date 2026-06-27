@@ -1,0 +1,27 @@
+{
+  "name": "@pypes/bot",
+  "version": "0.1.0",
+  "description": "CLI for installing and running pypes-bot via Docker.",
+  "license": "MIT",
+  "bin": {
+    "pypes-bot": "./src/cli.ts"
+  },
+  "files": [
+    "src/**/*.ts",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaredzwick/pypes-bot",
+    "directory": "npx"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0"
+  }
+}
