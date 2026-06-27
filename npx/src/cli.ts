@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 import { init } from './commands/init';
 import { start } from './commands/start';
 

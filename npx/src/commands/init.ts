@@ -1,6 +1,7 @@
 import { intro, outro, text, confirm, password, log as clackLog, isCancel, cancel } from '@clack/prompts';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 
 const ENV_FILE = 'pypes.env';
 const DATA_DIR = 'pypes-data';
@@ -118,8 +119,8 @@ export async function init(): Promise<void> {
 
 async function ensureDocker(): Promise<boolean> {
   try {
-    const res = Bun.spawnSync(['docker', '--version'], { stdout: 'pipe', stderr: 'pipe' });
-    if (res.exitCode === 0) return true;
+    const res = spawnSync('docker', ['--version'], { stdio: 'pipe' });
+    if (res.status === 0) return true;
   } catch {
     // fall through
   }

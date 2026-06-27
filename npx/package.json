@@ -4,24 +4,30 @@
   "description": "CLI for installing and running pypes-bot via Docker.",
   "license": "MIT",
   "bin": {
-    "pypes-bot": "./src/cli.ts"
+    "pypes-bot": "dist/cli.mjs"
   },
   "files": [
-    "src/**/*.ts",
+    "dist/**/*",
     "README.md"
   ],
+  "scripts": {
+    "build": "bun build src/cli.ts --target=node --format=esm --outfile=dist/cli.mjs --banner=\"#!/usr/bin/env node\" && chmod +x dist/cli.mjs",
+    "prepublishOnly": "bun run build"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jaredzwick/pypes-bot",
+    "url": "git+https://github.com/jaredzwick/pypes-bot.git",
     "directory": "npx"
   },
   "engines": {
+    "node": ">=20",
     "bun": ">=1.1.0"
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.1.0"
+    "@types/bun": "^1.1.0",
+    "@types/node": "^22.0.0"
   }
 }

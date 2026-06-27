@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const IMAGE = process.env.PYPES_BOT_IMAGE ?? 'ghcr.io/jaredzwick/pypes-bot:latest';
 const CONTAINER = 'pypes-bot';
@@ -15,21 +16,21 @@ export async function start(): Promise<void> {
   }
 
   console.log(`pulling ${IMAGE}…`);
-  const pull = Bun.spawnSync(['docker', 'pull', IMAGE], { stdout: 'inherit', stderr: 'inherit' });
-  if (pull.exitCode !== 0) {
+  const pull = spawnSync('docker', ['pull', IMAGE], { stdio: 'inherit' });
+  if (pull.status !== 0) {
     console.error('docker pull failed.');
-    process.exit(pull.exitCode ?? 1);
+    process.exit(pull.status ?? 1);
   }
 
   // Stop any running instance first
-  Bun.spawnSync(['docker', 'rm', '-f', CONTAINER], { stdout: 'ignore', stderr: 'ignore' });
+  spawnSync('docker', ['rm', '-f', CONTAINER], { stdio: 'ignore' });
 
   const dataDir = resolve('pypes-data');
   const envFile = resolve('pypes.env');
 
-  const run = Bun.spawnSync(
+  const run = spawnSync(
+    'docker',
     [
-      'docker',
       'run',
       '--rm',
       '-d',
@@ -43,11 +44,11 @@ export async function start(): Promise<void> {
       '8080:8080',
       IMAGE,
     ],
-    { stdout: 'inherit', stderr: 'inherit' },
+    { stdio: 'inherit' },
   );
-  if (run.exitCode !== 0) {
+  if (run.status !== 0) {
     console.error('docker run failed.');
-    process.exit(run.exitCode ?? 1);
+    process.exit(run.status ?? 1);
   }
 
   console.log(`\npypes-bot is running.`);
