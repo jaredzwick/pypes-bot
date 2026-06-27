@@ -6,7 +6,8 @@ ARG BUN_VERSION=1.1.34
 
 FROM oven/bun:${BUN_VERSION} AS build
 WORKDIR /app
-COPY package.json bun.lockb* tsconfig.json drizzle.config.ts ./
+COPY package.json tsconfig.json drizzle.config.ts ./
+COPY bun.lock* bun.lockb* ./
 COPY src ./src
 COPY migrations ./migrations
 RUN bun install --frozen-lockfile --production || bun install --production
