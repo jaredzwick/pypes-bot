@@ -2,7 +2,7 @@
 
 # Pin Bun explicitly — never `latest`. Bun has had TLS regressions in minor
 # releases; we want bit-for-bit reproducible builds.
-ARG BUN_VERSION=1.1.34
+ARG BUN_VERSION=1.3.14
 
 FROM oven/bun:${BUN_VERSION} AS build
 WORKDIR /app
