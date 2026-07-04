@@ -20,7 +20,7 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0",
+    "@anthropic-ai/sdk": "^0.110.0",
     "drizzle-orm": "^0.36.0",
     "ulid": "^2.3.0",
     "zod": "^3.23.0"
